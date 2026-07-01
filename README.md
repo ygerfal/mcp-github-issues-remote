@@ -4,7 +4,7 @@ A **remote Model Context Protocol (MCP)** server for GitHub Issues, with OAuth 2
 
 Companion repo to [mcp-github-issues](https://github.com/ygerfal/mcp-github-issues) — same three tools, different transport, different identity model.
 
-> **Status:** Active development this week. Day 1-3 complete: OAuth 2.1 + PKCE scaffold, envelope encryption, SQLite persistence, HTTP server, MCP handler over Streamable HTTP transport wired to per-user decrypted tokens. **16/16 tests passing** (11 crypto + 5 auth wall). Day 4-5: Fly.io deploy + expanded threat model.
+> **Status:** Complete. Live at https://mcp-gh-issues-remote.fly.dev. **16/16 tests passing** (11 crypto + 5 auth wall). Threat model + key rotation strategy: [`docs/threat-model.md`](./docs/threat-model.md).
 
 ---
 
@@ -91,17 +91,19 @@ Wire layout of each ciphertext blob: `[12-byte IV][ciphertext][16-byte auth tag]
 
 ---
 
-## Threat model (draft — expanded in Day 5)
+## Threat model (summary)
+
+Full document with key rotation strategy, backup/restore procedure, and named backlog items lives at [`docs/threat-model.md`](./docs/threat-model.md).
 
 | Threat | Mitigation |
 |---|---|
-| SQLite backup theft | Ciphertext-only exposure. Attacker needs MASTER_KEY to decrypt any DEK, DEK to decrypt any token. |
-| MASTER_KEY leak | All DEKs compromised. Rotation re-wraps every DEK (fast); tokens themselves stay encrypted with their per-user DEKs. |
-| Session JWT theft | Full access as that user until token expires (30d) or is revoked. Mitigation: shorter expiry + revocation list (backlog). |
-| Auth-code interception between browser and server callback | PKCE `code_verifier` — attacker with the code but no verifier can't complete the exchange. |
-| CSRF on `/oauth/callback` | `state` parameter is signed random, validated single-use. |
-| Timing attack on token comparison | JWT verification via `jose` uses constant-time comparison. |
-| Server memory dump | Plaintext token exists in memory only for the duration of a single tool call. Not stored, not logged. |
+| SQLite backup theft | Ciphertext-only. Attacker needs MASTER_KEY to unwrap any DEK, DEK to decrypt any token. |
+| MASTER_KEY leak | Rotation re-wraps every DEK (O(users), not O(users × tokens)). Fly secrets store — never on disk. |
+| Session JWT theft | 30-day expiry bounds window. Revocation list on backlog. |
+| Auth-code interception | PKCE — attacker with code but no verifier can't complete exchange. |
+| CSRF on `/oauth/callback` | `state` param is random + single-use + DB-backed. |
+| Server memory dump | Plaintext token exists only for the duration of one tool call. |
+| Prompt injection via issue body | Scope minimization at OAuth (`repo,read:user` only). Client-side policy is the real fix. |
 
 ---
 
@@ -160,8 +162,8 @@ node --import tsx --test src/crypto.test.ts
 - **Day 1** ✅ — OAuth 2.1 + PKCE scaffold, envelope encryption, SQLite persistence, HTTP server
 - **Day 2** ✅ — Crypto unit tests (11/11 pass)
 - **Day 3** ✅ — MCP handler over Streamable HTTP transport, tools wired to per-user decrypted tokens, auth wall tests (5/5 pass)
-- **Day 4** — Fly.io deployment, real GitHub OAuth App, end-to-end auth test in production
-- **Day 5** — Expanded threat model, deployment guide, Loom demo
+- **Day 4** ✅ — Fly.io deployment ([`DEPLOY.md`](./DEPLOY.md)), Dockerfile, end-to-end verified against real GitHub API
+- **Day 5** ✅ — Expanded threat model ([`docs/threat-model.md`](./docs/threat-model.md)) with key rotation strategy for all three secret types
 
 ---
 
