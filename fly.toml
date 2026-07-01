@@ -1,39 +1,40 @@
-# fly.toml — Fly.io deployment config
+# fly.toml app configuration file generated for mcp-gh-issues-remote on 2026-07-01T13:27:12-07:00
 #
-# Deploy:
-#   fly launch --no-deploy      # first-time, generates app name
-#   fly volumes create vault --size 1
-#   fly secrets set MASTER_KEY_B64=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
-#   fly secrets set SESSION_JWT_KEY_B64=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
-#   fly secrets set GITHUB_CLIENT_ID=Iv1.xxxx GITHUB_CLIENT_SECRET=xxxx
-#   fly deploy
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "mcp-gh-issues-remote"
-primary_region = "sea"
+app = 'mcp-gh-issues-remote'
+primary_region = 'sjc'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  PORT = "8787"
-  PUBLIC_BASE_URL = "https://mcp-gh-issues-remote.fly.dev"
-  GITHUB_OAUTH_SCOPES = "repo,read:user"
-  SQLITE_PATH = "/data/vault.db"
+  GITHUB_OAUTH_SCOPES = 'repo,read:user'
+  PORT = '8787'
+  PUBLIC_BASE_URL = 'https://mcp-gh-issues-remote.fly.dev'
+  SQLITE_PATH = '/data/vault.db'
 
 [[mounts]]
-  source = "vault"
-  destination = "/data"
+  source = 'vault'
+  destination = '/data'
 
 [http_service]
   internal_port = 8787
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
-[[http_service.checks]]
-  interval = "30s"
-  timeout = "5s"
-  grace_period = "10s"
-  method = "get"
-  path = "/healthz"
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'get'
+    path = '/healthz'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024

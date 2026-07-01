@@ -26,7 +26,7 @@ From the repo root:
 cd /Users/yg/claudecode/projects/mcp-github-issues-remote
 
 # --no-deploy so we can set secrets before the first boot
-fly launch --no-deploy --copy-config --name mcp-gh-issues-remote --region sea
+fly launch --no-deploy --copy-config --name mcp-gh-issues-remote --region sjc
 ```
 
 If Fly complains the name is taken, pick another (e.g. `mcp-gh-issues-yousef`) and update `fly.toml` + `PUBLIC_BASE_URL` accordingly.
@@ -36,7 +36,7 @@ If Fly complains the name is taken, pick another (e.g. `mcp-gh-issues-yousef`) a
 SQLite writes to `/data/vault.db` per the config. Volume must exist before boot.
 
 ```bash
-fly volumes create vault --size 1 --region sea
+fly volumes create vault --size 1 --region sjc
 ```
 
 ## Step 4 — Generate + set the crypto secrets
@@ -106,29 +106,57 @@ Click **Connect GitHub** → authorize on GitHub → land on the connected-as-@y
 
 ## Step 8 — Wire an MCP client
 
-Claude Desktop config (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+### 8A — Grab the JWT
+
+After completing Step 7, the browser landed on a "Connected as @you" page. The **Session token** section shows a long string starting with `eyJ...` — that's your JWT. Copy the whole string.
+
+Missed it? Revisit https://mcp-gh-issues-remote.fly.dev/oauth/start to mint a fresh one.
+
+### 8B — Claude Desktop (simpler path)
+
+Config lives at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS. If empty, use this whole thing:
 
 ```json
 {
   "mcpServers": {
     "github-issues-remote": {
+      "type": "http",
       "url": "https://mcp-gh-issues-remote.fly.dev/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_SESSION_JWT_FROM_STEP_7"
+        "Authorization": "Bearer PASTE_YOUR_JWT_HERE"
       }
     }
   }
 }
 ```
 
-Claude Code CLI:
+If the file already has `mcpServers`, add the `github-issues-remote` entry inside — don't overwrite existing servers.
+
+Fully quit Claude Desktop (`cmd+q`, not just close window) and reopen it. Check the connector icon in the input area — `github-issues-remote` should be listed.
+
+Test prompt:
+> *"Using the github-issues-remote tool, list the 5 most recent open issues in anthropics/anthropic-sdk-python."*
+
+The model should call `list_issues` and stream back real titles.
+
+### 8C — Claude Code CLI (alternative)
 
 ```bash
-claude mcp add github-issues-remote --url https://mcp-gh-issues-remote.fly.dev/mcp \
-  --header "Authorization: Bearer YOUR_SESSION_JWT_FROM_STEP_7"
+claude mcp add --transport http github-issues-remote https://mcp-gh-issues-remote.fly.dev/mcp \
+  -H "Authorization: Bearer PASTE_YOUR_JWT_HERE"
+
+claude mcp list          # verify it's registered
+claude                   # start a session and prompt as above
 ```
 
-Restart the host. Ask it: *"List the most recent 5 open issues in anthropics/anthropic-sdk-python"* — the model should call `list_issues` and stream the result back.
+### 8D — When it doesn't work
+
+| Symptom | Fix |
+|---|---|
+| Server shows red in connector menu | Check `fly logs` for auth errors; regenerate JWT if it expired |
+| "invalid session token" in logs | Wrong JWT — mint a fresh one via `/oauth/start` |
+| "user not found" in logs | Wrong Fly database (rare — usually only if you re-deployed with a different volume) |
+| Tool call hangs | GitHub API rate limit or scope; check `fly logs` for the Octokit error |
 
 ## Step 9 — Log the deployment
 
