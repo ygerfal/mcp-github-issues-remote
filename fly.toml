@@ -12,7 +12,7 @@ app = "mcp-gh-issues-remote"
 primary_region = "sea"
 
 [build]
-  builder = "paketobuildpacks/builder-jammy-base"
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = "8787"
