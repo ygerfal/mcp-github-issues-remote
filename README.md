@@ -4,7 +4,7 @@ A **remote Model Context Protocol (MCP)** server for GitHub Issues, with OAuth 2
 
 Companion repo to [mcp-github-issues](https://github.com/ygerfal/mcp-github-issues) — same three tools, different transport, different identity model.
 
-> **Status:** Active development this week. Day 1-2 complete: OAuth 2.1 + PKCE scaffold, envelope encryption (11/11 unit tests passing), SQLite persistence, HTTP server. Day 3-5: MCP handler + Fly.io deploy + threat model writeup.
+> **Status:** Active development this week. Day 1-3 complete: OAuth 2.1 + PKCE scaffold, envelope encryption, SQLite persistence, HTTP server, MCP handler over Streamable HTTP transport wired to per-user decrypted tokens. **16/16 tests passing** (11 crypto + 5 auth wall). Day 4-5: Fly.io deploy + expanded threat model.
 
 ---
 
@@ -158,8 +158,8 @@ node --import tsx --test src/crypto.test.ts
 ## What's shipping when
 
 - **Day 1** ✅ — OAuth 2.1 + PKCE scaffold, envelope encryption, SQLite persistence, HTTP server
-- **Day 2** ✅ — Crypto unit tests (11/11 pass), GitHub OAuth app registration doc
-- **Day 3** — MCP handler over Streamable HTTP transport, tools wired to per-user decrypted tokens
+- **Day 2** ✅ — Crypto unit tests (11/11 pass)
+- **Day 3** ✅ — MCP handler over Streamable HTTP transport, tools wired to per-user decrypted tokens, auth wall tests (5/5 pass)
 - **Day 4** — Fly.io deployment, real GitHub OAuth App, end-to-end auth test in production
 - **Day 5** — Expanded threat model, deployment guide, Loom demo
 

@@ -17,8 +17,11 @@
 
 import express, { type Request, type Response, type NextFunction } from "express";
 import { jwtVerify } from "jose";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildAuthorizeUrl, handleCallback, issueSessionJwt } from "./oauth.js";
-import { pruneStaleFlows } from "./db.js";
+import { pruneStaleFlows, getUserById } from "./db.js";
+import { unwrapToken } from "./crypto.js";
+import { createMcpServer } from "./mcp.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -128,18 +131,54 @@ app.get("/oauth/callback", async (req, res) => {
   }
 });
 
-// ------------- MCP endpoint (stub for Day 1) -------------
+// ------------- MCP endpoint -------------
+//
+// Streamable HTTP transport per MCP spec. Stateless mode: a fresh transport +
+// server instance per request, bound to the requesting user's decrypted token
+// via closure. Plaintext token lives only for the request's lifetime.
 
-app.post("/mcp", requireSession, async (req: AuthedRequest, res) => {
-  // Day 3 wires @modelcontextprotocol/sdk's Streamable HTTP transport here,
-  // decrypting the user's GitHub token per-call via envelope encryption
-  // and passing it to the Octokit client inside each tool handler.
-  res.status(501).json({
-    error: "not_yet_implemented",
-    note: "MCP handler lands Day 3",
-    session: { userId: req.userId, login: req.login },
+async function handleMcp(req: AuthedRequest, res: Response): Promise<void> {
+  const userId = req.userId!;
+  const user = getUserById(userId);
+  if (!user) {
+    res.status(401).json({ error: "user not found" });
+    return;
+  }
+
+  let githubToken: string;
+  try {
+    githubToken = unwrapToken(user.encrypted_dek, user.encrypted_token);
+  } catch {
+    res.status(500).json({ error: "token unwrap failed" });
+    return;
+  }
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined, // stateless
   });
-});
+  res.on("close", () => {
+    void transport.close();
+  });
+
+  const server = createMcpServer({
+    githubToken,
+    actorLogin: user.github_login,
+  });
+
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (err) {
+    if (!res.headersSent) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: "mcp transport error", detail: msg });
+    }
+  }
+}
+
+app.post("/mcp", requireSession, handleMcp);
+app.get("/mcp", requireSession, handleMcp);
+app.delete("/mcp", requireSession, handleMcp);
 
 // ------------- Boot -------------
 
